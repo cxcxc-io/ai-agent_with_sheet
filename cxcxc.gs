@@ -635,7 +635,7 @@ function saveLogToSheet(sheetName, log) {
 
 
 // Gemini with Function tool
-function GeminiQAWithWeb(user_question) {
+function GeminiQAWithFunctionTool(user_question) {
   
   var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
   
