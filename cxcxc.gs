@@ -635,3 +635,237 @@ function saveLogToSheet(sheetName, log) {
 
 
 // Gemini with Function tool
+function GeminiQAWithWeb(user_question) {
+  
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  
+  // user_question="what kind book in there https://www.amazon.co.jp/kindle-dbs/storefront?storeType=browse&node=2275256051"
+  // user_question="visit content from https://langchain-ai.github.io/langgraph/tutorials/introduction/#requirements"
+  // user_question="你會讀中文嗎?";
+  // user_question= "https://langchain-ai.github.io/langgraph/tutorials/introduction/#requirements  Help me look at the code in this website and what is the key point? please use chinese reply"
+
+
+  Logger.log("發送請求到 Gemini API，問題: " + user_question);
+
+   var payload = {
+    "contents": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": user_question
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "function_declarations": [
+{
+  "name": "GeminiFetchUrl",
+  "description": "Sends an HTTP request to a specified URL with various options for method, headers, and payload, and includes the user's original question.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "The URL to send the request to."
+      },
+      "user_question": {
+        "type": "string",
+        "description": "The question intent from the question ."
+      },
+      "method": {
+        "type": "string",
+        "description": "The HTTP method to use, e.g., GET, POST, PUT, DELETE.",
+        "enum": ["get", "delete", "patch", "post", "put"]
+      },
+      "headers": {
+        "type": "object",
+        "description": "Optional HTTP headers to include in the request.",
+        "properties": {
+          "Content-Type": {
+            "type": "string",
+            "description": "The MIME type of the body of the request, e.g., application/json."
+          },
+          "Authorization": {
+            "type": "string",
+            "description": "Optional authorization token for the request."
+          },
+          "Custom-Header": {
+            "type": "string",
+            "description": "A custom header that you may want to add to the request."
+          }
+        }
+      },
+      "payload": {
+        "type": "string",
+        "description": "Optional data to send with the request, typically used for POST or PUT requests. This should be a JSON string, a URL-encoded form data string, or another format depending on the Content-Type."
+      },
+      "contentType": {
+        "type": "string",
+        "description": "The content type of the payload, e.g., application/json, application/x-www-form-urlencoded."
+      },
+      "muteHttpExceptions": {
+        "type": "boolean",
+        "description": "Whether to prevent exceptions from being thrown on HTTP errors (status codes 4xx or 5xx)."
+      },
+      "followRedirects": {
+        "type": "boolean",
+        "description": "Whether to automatically follow HTTP redirects (3xx responses). Defaults to true."
+      },
+      "validateHttpsCertificates": {
+        "type": "boolean",
+        "description": "Whether to validate HTTPS certificates. Defaults to true."
+      },
+
+    },
+    "required": ["url", "user_question"]
+  }
+}
+        ]
+      }
+    ]
+  };
+Logger.log("發送的 payload: " + JSON.stringify(payload, null, 2));
+
+  var options = {
+    "method": "post",
+    "contentType": "application/json",
+    "payload": JSON.stringify(payload),
+    "muteHttpExceptions": true
+  };
+
+  var response = UrlFetchApp.fetch(url, options);
+    Logger.log("收到的初始回應: " + response.getContentText());
+
+  var jsonResponse = JSON.parse(response.getContentText());
+
+  // 解析並處理回應
+  var finalResult = parseGeminiResponse(jsonResponse);
+  Logger.log("最終結果: " + finalResult);
+
+  return finalResult;
+
+}
+
+/**
+ * 解析 Gemini 的回應並執行相應操作
+ */
+function parseGeminiResponse(response) {
+  Logger.log("解析回應: " + JSON.stringify(response, null, 2));
+  
+  if (response.candidates && response.candidates.length > 0) {
+    var candidate = response.candidates[0];
+    
+    // 檢查是否為 function call
+    if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+      var part = candidate.content.parts[0];
+      if (part.functionCall) {
+        Logger.log("檢測到 function call: " + part.functionCall.name);
+        var functionName = part.functionCall.name;
+        // var args = JSON.parse(part.functionCall.args);
+        var args = part.functionCall.args;
+        Logger.log(functionName+" arg is  " + args);
+        // 調用相應的函數
+        // return functionName
+        return executeFunctionCall(functionName, args);
+      } else if (part.text) {
+        // 如果是普通文本回應
+        Logger.log("收到普通文本回應");
+        return part.text;
+      }
+    }
+  }
+  Logger.log("未能解析 Gemini 的回應");
+  return "未能解析 Gemini 的回應";
+}
+
+
+
+
+/**
+ * 根據 function call 調度相應的函數
+ */
+function executeFunctionCall(functionName, args) {
+  Logger.log("執行函數: " + functionName + "，參數: " + JSON.stringify(args, null, 2));
+  
+  if (functionName === "GeminiFetchUrl") {
+    
+    return GeminiFetchUrl(args);
+  } else {
+    Logger.log("未定義的函數名稱: " + functionName);
+    return "未定義的函數名稱: " + functionName;
+  }
+}
+
+/**
+ * 執行抓取網頁內容的函數
+ */
+function GeminiFetchUrl(args) {
+
+  Logger.log("先緩緩等待");
+
+
+  Logger.log("開始抓取網頁內容，URL: " + args.url);
+
+  var url = args.url;
+  var method = args.method || "get";
+  var headers = args.headers || {};
+  var payload = args.payload || null;
+  var contentType = args.contentType || "application/json";
+  var muteHttpExceptions = args.muteHttpExceptions || false;
+  var followRedirects = args.followRedirects !== undefined ? args.followRedirects : true;
+  var validateHttpsCertificates = args.validateHttpsCertificates !== undefined ? args.validateHttpsCertificates : true;
+  var user_question = args.user_question;
+
+  var options = {
+    "method": method,
+    "headers": headers,
+    "payload": payload,
+    "contentType": contentType,
+    "muteHttpExceptions": muteHttpExceptions,
+    "followRedirects": followRedirects,
+    "validateHttpsCertificates": validateHttpsCertificates
+  };
+
+  Logger.log("抓取網頁選項: " + JSON.stringify(options, null, 2));
+
+  var response = UrlFetchApp.fetch(url, options);
+  var content = response.getContentText();
+  Logger.log("抓取到的內容: " + content);
+  
+  // 將抓取到的內容和用戶問題再發送給 Gemini
+  return sendFinalRequestToGemini(user_question, content);
+}
+
+/**
+ * 將用戶問題和抓取的數據發送回 Gemini 以獲取最終回答
+ */
+function sendFinalRequestToGemini(user_question, fetchedData) {
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+
+var payload = {
+    "contents": [{
+      "parts": [{
+        "text": user_question +" 。 爬取的內容如下 " + fetchedData
+      }]
+    }]
+  };
+
+  var options = {
+    "method": "post",
+    "contentType": "application/json",
+    "payload": JSON.stringify(payload),
+    "muteHttpExceptions": true
+  };
+
+  Logger.log("發送最終請求的 payload: " + JSON.stringify(payload, null, 2));
+
+  var response = UrlFetchApp.fetch(url, options);
+  var finalResponse = JSON.parse(response.getContentText());
+  
+  Logger.log("最終回應: " + JSON.stringify(finalResponse, null, 2));
+  var finalResult = finalResponse.candidates[0].content.parts[0].text;
+  return finalResult;
+}
