@@ -194,41 +194,84 @@ https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_m
 ## `doPost` 使用教學
 
 ### 功能：
-`doPost` 函數用於處理HTTP POST請求，將請求的JSON數據插入到指定的Google Spreadsheet工作表中。該函數會根據工作表的表頭自動匹配相應的欄位，並將數據插入到對應的列中。此功能適合於需要從外部應用程式自動寫入數據至Spreadsheet的場景。
+`doPost` 函數用於處理HTTP POST請求，根據 `function_name` 參數執行不同的操作：
+- **`insert_data`**：將請求的JSON數據插入到指定的Google Spreadsheet工作表中，並根據表頭自動匹配相應的欄位進行插入。
+- **`mail_user`**：根據提供的收件人列表發送郵件，若未指定信件標題，則會自動使用當天日期作為預設標題。
+
+這些功能適合於需要自動化地將數據寫入Google Spreadsheet或發送郵件的情境。
 
 ### 使用方式：
 
-1. **在Google Apps Script中部署Web應用**：
+#### 1. 在Google Apps Script中部署Web應用：
    - 在Google Apps Script編輯器中，點擊 `部署` > `部署為網頁應用`。
-   - 設定誰可以訪問應用為 `任何擁有此應用程式網址的人`。
-   - 點擊 `部署` 並獲取應用的URL。
+   - 設定應用的訪問權限為 `任何擁有此應用程式網址的人`。
+   - 點擊 `部署`，並獲取應用的URL。
 
-2. **通過HTTP POST請求使用`doPost`**：
-   - 使用HTTP客戶端（如Postman、cURL）向該應用的URL發送POST請求，請求正文應包含要插入的數據，並指定目標工作表的名稱。
+#### 2. 通過HTTP POST請求使用`doPost`：
+   - 使用HTTP客戶端（如Postman、cURL）向應用的URL發送POST請求。
+   - 根據不同的功能，在POST Body中指定 `function_name` 及其他所需參數。
 
 ### POST Body 格式：
-請求正文應為JSON格式，包含以下內容：
-- **sheet_name**: 要插入數據的Google Spreadsheet工作表名稱。
-- 其他字段：與Google Spreadsheet中的列名對應的key-value對。
+請求正文應為JSON格式，包含以下參數：
 
-#### 範例：
-插入數據至名為 `Sheet1` 的工作表中，將 `name` 和 `email` 插入對應的列。
+#### 通用參數：
+- **function_name**: 指定所需執行的功能，可以是 `insert_data` 或 `mail_user`。
+
+#### `insert_data` 模式：
+- **sheet_name**: 必須參數，指定要插入數據的Google Spreadsheet工作表名稱。
+- 其他字段：需對應Google Spreadsheet中的列名。
+
+#### `mail_user` 模式：
+- **sender_emails**: 必須參數，收件人的郵件地址列表。
+- **email_subject**: 可選參數，信件的標題；若未提供，則會使用當天日期作為標題。
+- **email_content**: 必須參數，信件內容，支持HTML格式。
+
+### 範例：
+
+#### 1. 插入數據至工作表 (`insert_data` 模式)：
+將 `name` 和 `email` 插入至名為 `Sheet1` 的工作表中。
 
 ```json
 {
+  "function_name": "insert_data",
   "sheet_name": "Sheet1",
   "name": "John Doe",
   "email": "johndoe@example.com"
 }
 ```
-使用curl 發送訪問
+
+使用cURL發送請求：
 ```
 curl -X POST \
   https://script.google.com/macros/s/your-script-id/exec \
   -H 'Content-Type: application/json' \
   -d '{
+    "function_name": "insert_data",
     "sheet_name": "Sheet1",
     "name": "John Doe",
     "email": "johndoe@example.com"
   }'
 ```
+
+#### 2. 發送郵件 (mail_user 模式)：
+
+發送一封內容為 Welcome! 的信件，標題為當天日期，給多個收件人。
+```
+{
+  "function_name": "mail_user",
+  "sender_emails": ["user1@example.com", "user2@example.com"],
+  "email_content": "<h1>Welcome!</h1><p>Thank you for joining us!</p>"
+}
+```
+使用cURL發送請求
+```
+curl -X POST \
+  https://script.google.com/macros/s/your-script-id/exec \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "function_name": "mail_user",
+    "sender_emails": ["user1@example.com", "user2@example.com"],
+    "email_content": "<h1>Welcome!</h1><p>Thank you for joining us!</p>"
+  }'
+```
+
