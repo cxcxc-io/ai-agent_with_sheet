@@ -516,36 +516,50 @@ function applyFilters(row, filters) {
 /**
  * doPost
  * 
- * 此函數處理HTTP POST請求，將請求的JSON數據插入到指定的Google Sheets工作表中，並根據表頭自動匹配相應的列進行數據插入。
+ * 此函數處理HTTP POST請求，根據傳入的參數執行不同的功能，包括：
+ * - 將請求的JSON數據插入到指定的Google Sheets工作表中。
+ * - 或者，根據指定的郵件信息發送郵件給多個收件人。
  * 
  * 功能概述：
  * - 解析並處理POST請求中的JSON數據。
- * - 根據傳入的工作表名稱（sheet_name）選擇要操作的Google Sheets工作表。
+ * - 根據 `function_name` 決定執行的功能：
+ *   - `insert_data`: 將數據插入到指定的Google Sheets工作表中。
+ *   - `mail_user`: 發送電子郵件給指定的收件人。
  * - 自動將JSON數據中的key與工作表的表頭進行匹配，並將相應數據插入到對應的列。
  * - 如果表頭包含"vector"字樣，則自動生成向量表示並插入到該列中。
- * - 在插入數據後，返回操作結果的JSON響應。
+ * - 如果使用 `mail_user` 功能，則會發送電子郵件，並且如果未指定信件標題，將使用當天日期作為預設標題。
  * - 每次請求都會記錄日誌，以便後續調試和追蹤。
  * 
  * POST Body 參數：
- * - sheet_name (required): 要插入數據的Google Sheets工作表名稱。
- * - 其他參數：與Google Sheets中的列名相對應的key，插入數據時會自動匹配到相應的列。
- *   - 例如，若工作表有列名 "asset_name" 和 "asset_category"，則POST Body應包含 "asset_name": "Laptop", "asset_category": "Electronics" 這類形式的數據。
+ * - function_name (required): 要執行的功能名稱，可以是 `insert_data` 或 `mail_user`。
+ * - 當 function_name 為 `insert_data` 時：
+ *   - sheet_name (required): 要插入數據的Google Sheets工作表名稱。
+ *   - 其他參數：與Google Sheets中的列名相對應的key，插入數據時會自動匹配到相應的列。
+ *     - 例如，若工作表有列名 "asset_name" 和 "asset_category"，則POST Body應包含 "asset_name": "Laptop", "asset_category": "Electronics" 這類形式的數據。
+ * - 當 function_name 為 `mail_user` 時：
+ *   - sender_emails (required): 收件人的郵件地址列表。
+ *   - email_subject (optional): 信件的標題，若未提供，預設使用當天日期作為標題。
+ *   - email_content (required): 信件的內容，支持HTML格式。
  * 
  * 返回結果：
  * - JSON格式，包含一個 `result` 欄位，指示操作是否成功：
- *   - "success" 表示成功插入數據。
+ *   - "success" 表示數據成功插入或郵件成功發送。
  *   - "failure" 表示操作失敗，並包含 `error` 欄位描述錯誤訊息。
+ *   - 當執行 `mail_user` 功能時，成功則返回 "email_sent_success"。
  * 
  * 記錄日誌：
- * - 每次請求都會記錄日誌，格式為 "timestamp=xxxxx&request_body=???&result=???"
+ * - 每次請求都會記錄日誌，包含時間戳、請求內容及操作結果，日誌會保存到指定的Google Sheets工作表。
  * 
  * 主要邏輯：
- * 1. 解析POST請求中的JSON數據，並檢查必須的參數 `sheet_name` 是否存在。
- * 2. 根據 `sheet_name` 獲取對應的Google Sheets工作表。
- * 3. 將JSON數據中的key與工作表的表頭進行匹配，並將數據插入到對應的列。
- * 4. 如果表頭中有包含"vector"字樣的欄位，則調用向量生成函數來生成向量表示並插入。
- * 5. 記錄操作日誌，包括時間戳和請求內容。
- * 6. 返回操作結果，成功則返回 "success"，否則返回 "failure" 和錯誤訊息。
+ * 1. 解析POST請求中的JSON數據，並檢查必須的參數 `function_name` 是否存在。
+ * 2. 根據 `function_name` 決定是執行數據插入還是發送郵件：
+ *    - 若為 `insert_data`，則檢查 `sheet_name`，並獲取對應的Google Sheets工作表。
+ *    - 將JSON數據中的key與工作表的表頭進行匹配，並將數據插入到對應的列。
+ *    - 如果表頭中有包含"vector"字樣的欄位，則調用向量生成函數來生成向量表示並插入。
+ *    - 記錄操作日誌，包括時間戳和請求內容。
+ *    - 返回插入結果。
+ *    - 若為 `mail_user`，則檢查必須的參數 `sender_emails` 和 `email_content`，若 `email_subject` 未指定，使用當天日期作為預設值，然後發送郵件給指定收件人。
+ *    - 記錄郵件發送日誌並返回發送結果。
  */
 function doPost(e) {
   try {
@@ -553,60 +567,22 @@ function doPost(e) {
     var requestBody = JSON.parse(e.postData.contents);
     Logger.log("Request Body: " + JSON.stringify(requestBody));
     
-    // 確認sheet_name參數是否存在
-    var sheetName = requestBody.sheet_name;
-    if (!sheetName) {
-      throw new Error("Missing sheet_name parameter.");
+    // 確認function_name參數是否存在
+    var functionName = requestBody.function_name;
+    if (!functionName) {
+      throw new Error("Missing function_name parameter.");
     }
-
-    // 獲取指定的工作表
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-    if (!sheet) {
-      throw new Error("Sheet not found: " + sheetName);
-    }
-
-    // 獲取標題行
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    Logger.log("Headers: " + JSON.stringify(headers));
-
-    // 構建要插入的數據行
-    var newRow = [];
-    for (var i = 0; i < headers.length; i++) {
-      var header = headers[i];
-      var lowerHeader = header.toLowerCase().trim();
-      var matchedKey = Object.keys(requestBody).find(key => lowerHeader.includes(key.toLowerCase().trim()));
-      var value = matchedKey ? requestBody[matchedKey] : undefined;
-
-      if (value === undefined) {
-        // 如果JSON中沒有對應的key，則插入空值
-        newRow.push('');
-      } else if (lowerHeader.includes("vector") && matchedKey) {
-        // 如果header包含"vector"字樣，並且匹配到相應的json key，則調用GeminiVector001生成向量
-        var vector = GeminiVector001(value);
-        Logger.log("Generated Vector for " + matchedKey + ": " + vector);
-        newRow.push(vector);
-      } else {
-        // 正常插入數據
-        newRow.push(value);
-      }
-    }
-
-    // 將數據行插入到工作表的下一行
-    sheet.appendRow(newRow);
     
-    // 記錄操作成功的日誌
-    Logger.log("Data inserted successfully into sheet: " + sheetName);
-    
-
-    var log = "timestamp=" + new Date().toISOString() + "&user_payload=" + JSON.stringify(e.postData.contents);
-    Logger.log("Log: " + log);
-
-    saveLogToSheet("POST資料記錄", log);
-
-    // 返回成功結果
-    return ContentService.createTextOutput(JSON.stringify({ result: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
-
+    // 根據function_name的值來區分執行的功能
+    if (functionName === "insert_data") {
+      // 調用插入數據的功能
+      return insertData(requestBody);
+    } else if (functionName === "mail_user") {
+      // 調用寄送email的功能
+      return mailUser(requestBody);
+    } else {
+      throw new Error("Invalid function_name: " + functionName);
+    }
   } catch (error) {
     // 捕捉錯誤並記錄日誌
     Logger.log("Error: " + error.message);
@@ -617,16 +593,86 @@ function doPost(e) {
   }
 }
 
-
-function saveLogToSheet(sheetName, log) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
+// 插入數據功能
+function insertData(requestBody) {
+  var sheetName = requestBody.sheet_name;
+  if (!sheetName) {
+    throw new Error("Missing sheet_name parameter.");
   }
 
-  sheet.appendRow([new Date().toISOString(), log]);
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sheet) {
+    throw new Error("Sheet not found: " + sheetName);
+  }
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  Logger.log("Headers: " + JSON.stringify(headers));
+
+  var newRow = [];
+  for (var i = 0; i < headers.length; i++) {
+    var header = headers[i];
+    var lowerHeader = header.toLowerCase().trim();
+    var matchedKey = Object.keys(requestBody).find(key => lowerHeader.includes(key.toLowerCase().trim()));
+    var value = matchedKey ? requestBody[matchedKey] : undefined;
+
+    if (value === undefined) {
+      newRow.push('');
+    } else if (lowerHeader.includes("vector") && matchedKey) {
+      var vector = GeminiVector001(value);
+      Logger.log("Generated Vector for " + matchedKey + ": " + vector);
+      newRow.push(vector);
+    } else {
+      newRow.push(value);
+    }
+  }
+
+  sheet.appendRow(newRow);
+  Logger.log("Data inserted successfully into sheet: " + sheetName);
+
+  var log = "timestamp=" + new Date().toISOString() + "&user_payload=" + JSON.stringify(requestBody);
+  Logger.log("Log: " + log);
+  saveLogToSheet("POST資料記錄", log);
+
+  return ContentService.createTextOutput(JSON.stringify({ result: "success" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// 寄送email功能
+function mailUser(requestBody) {
+  var senderEmails = requestBody.sender_emails;
+  var emailSubject = requestBody.email_subject || "信件標題：" + new Date().toLocaleString(); // 預設為當天時間
+  var emailContent = requestBody.email_content;
+
+  if (!senderEmails || senderEmails.length === 0) {
+    throw new Error("Missing sender_emails parameter.");
+  }
+
+  // 發送郵件
+  for (var i = 0; i < senderEmails.length; i++) {
+    var recipient = senderEmails[i];
+    MailApp.sendEmail({
+      to: recipient,
+      subject: emailSubject,
+      htmlBody: emailContent
+    });
+    Logger.log("Email sent to: " + recipient);
+  }
+
+  var log = "timestamp=" + new Date().toISOString() + "&email_sent_to=" + JSON.stringify(senderEmails);
+  Logger.log("Log: " + log);
+  saveLogToSheet("郵件記錄", log);
+
+  return ContentService.createTextOutput(JSON.stringify({ result: "email_sent_success" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// 紀錄日誌到指定工作表
+function saveLogToSheet(sheetName, log) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(sheetName);
+  }
+  sheet.appendRow([new Date(), log]);
 }
 
 
