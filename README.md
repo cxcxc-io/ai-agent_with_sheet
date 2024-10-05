@@ -235,6 +235,8 @@ https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_m
 `doPost` 函數用於處理HTTP POST請求，根據 `function_name` 參數執行不同的操作：
 - **`insert_data`**：將請求的JSON數據插入到指定的Google Spreadsheet工作表中，並根據表頭自動匹配相應的欄位進行插入。
 - **`mail_user`**：根據提供的收件人列表發送郵件，若未指定信件標題，則會自動使用當天日期作為預設標題。
+- **`store_image_to_drive`**：將指定的網路圖片下載並儲存到Google Drive中，若提供了 `folder_name`，則會儲存在指定資料夾內，否則將以當前Spreadsheet的名稱作為資料夾名稱。
+
 
 這些功能適合於需要自動化地將數據寫入Google Spreadsheet或發送郵件的情境。
 
