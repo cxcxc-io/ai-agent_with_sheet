@@ -519,19 +519,23 @@ function applyFilters(row, filters) {
  * 此函數處理HTTP POST請求，根據傳入的參數執行不同的功能，包括：
  * - 將請求的JSON數據插入到指定的Google Sheets工作表中。
  * - 或者，根據指定的郵件信息發送郵件給多個收件人。
+ * - 或者，將網路圖片下載並存放到Google Drive指定的資料夾中。
  * 
  * 功能概述：
  * - 解析並處理POST請求中的JSON數據。
  * - 根據 `function_name` 決定執行的功能：
  *   - `insert_data`: 將數據插入到指定的Google Sheets工作表中。
  *   - `mail_user`: 發送電子郵件給指定的收件人。
+ *   - `store_image_to_drive`: 將指定的網路圖片下載並儲存到Google Drive中。
+ *     - 若 `folder_name` 提供，圖片會儲存在指定資料夾中。
+ *     - 若 `folder_name` 未提供，則預設使用當前 Spreadsheet 的名稱作為資料夾名稱。
  * - 自動將JSON數據中的key與工作表的表頭進行匹配，並將相應數據插入到對應的列。
  * - 如果表頭包含"vector"字樣，則自動生成向量表示並插入到該列中。
  * - 如果使用 `mail_user` 功能，則會發送電子郵件，並且如果未指定信件標題，將使用當天日期作為預設標題。
  * - 每次請求都會記錄日誌，以便後續調試和追蹤。
  * 
  * POST Body 參數：
- * - function_name (required): 要執行的功能名稱，可以是 `insert_data` 或 `mail_user`。
+ * - function_name (required): 要執行的功能名稱，可以是 `insert_data`、`mail_user` 或 `store_image_to_drive`。
  * - 當 function_name 為 `insert_data` 時：
  *   - sheet_name (required): 要插入數據的Google Sheets工作表名稱。
  *   - 其他參數：與Google Sheets中的列名相對應的key，插入數據時會自動匹配到相應的列。
@@ -540,10 +544,13 @@ function applyFilters(row, filters) {
  *   - sender_emails (required): 收件人的郵件地址列表。
  *   - email_subject (optional): 信件的標題，若未提供，預設使用當天日期作為標題。
  *   - email_content (required): 信件的內容，支持HTML格式。
+ * - 當 function_name 為 `store_image_to_drive` 時：
+ *   - image_url (required): 要下載的圖片的網址。
+ *   - folder_name (optional): 圖片將儲存的資料夾名稱，若未提供，將使用當前 Spreadsheet 的名稱作為預設值。
  * 
  * 返回結果：
  * - JSON格式，包含一個 `result` 欄位，指示操作是否成功：
- *   - "success" 表示數據成功插入或郵件成功發送。
+ *   - "success" 表示數據成功插入、郵件成功發送或圖片成功儲存。
  *   - "failure" 表示操作失敗，並包含 `error` 欄位描述錯誤訊息。
  *   - 當執行 `mail_user` 功能時，成功則返回 "email_sent_success"。
  * 
@@ -552,15 +559,17 @@ function applyFilters(row, filters) {
  * 
  * 主要邏輯：
  * 1. 解析POST請求中的JSON數據，並檢查必須的參數 `function_name` 是否存在。
- * 2. 根據 `function_name` 決定是執行數據插入還是發送郵件：
+ * 2. 根據 `function_name` 決定是執行數據插入、發送郵件還是儲存圖片：
  *    - 若為 `insert_data`，則檢查 `sheet_name`，並獲取對應的Google Sheets工作表。
  *    - 將JSON數據中的key與工作表的表頭進行匹配，並將數據插入到對應的列。
  *    - 如果表頭中有包含"vector"字樣的欄位，則調用向量生成函數來生成向量表示並插入。
  *    - 記錄操作日誌，包括時間戳和請求內容。
  *    - 返回插入結果。
  *    - 若為 `mail_user`，則檢查必須的參數 `sender_emails` 和 `email_content`，若 `email_subject` 未指定，使用當天日期作為預設值，然後發送郵件給指定收件人。
- *    - 記錄郵件發送日誌並返回發送結果。
+ *    - 若為 `store_image_to_drive`，檢查 `image_url` 和 `folder_name`，下載圖片並儲存到 Google Drive，資料夾名稱為手動指定或當前Spreadsheet的名稱。
+ *    - 記錄郵件或圖片儲存日誌並返回操作結果。
  */
+
 function doPost(e) {
   try {
     // 解析POST請求中的JSON數據
@@ -580,6 +589,11 @@ function doPost(e) {
     } else if (functionName === "mail_user") {
       // 調用寄送email的功能
       return mailUser(requestBody);
+    } else if (functionName === "store_image_to_drive") {
+      // 調用儲存圖片到Google Drive的功能
+      // 如果沒有手動提供資料夾名稱，使用當前Spreadsheet的名字作為資料夾名稱
+      var folderName = requestBody.folder_name || SpreadsheetApp.getActiveSpreadsheet().getName();
+      return storeImageToDrive(requestBody.image_url, folderName);
     } else {
       throw new Error("Invalid function_name: " + functionName);
     }
@@ -592,6 +606,39 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
+
+// 儲存圖片至google drive，若無指定資料夾名字，則以當前spreadsheet名字當成資料夾名字
+function storeImageToDrive(imageUrl, folderName) {
+  try {
+    // 1. 檢查指定資料夾是否存在，不存在則創建
+    var folders = DriveApp.getFoldersByName(folderName);
+    var folder;
+    if (folders.hasNext()) {
+      folder = folders.next();
+    } else {
+      folder = DriveApp.createFolder(folderName);
+    }
+    
+    // 2. 使用 UrlFetchApp 抓取圖片
+    var response = UrlFetchApp.fetch(imageUrl);
+    var blob = response.getBlob();
+    
+    // 3. 儲存圖片到資料夾
+    var fileName = "downloaded_image_" + new Date().getTime() + ".jpg"; // 使用當前時間生成唯一檔名
+    var file = folder.createFile(blob.setName(fileName));
+    
+    // 4. 返回圖片檔案的URL
+    Logger.log("Image saved successfully: " + file.getUrl());
+    return ContentService.createTextOutput(JSON.stringify({ result: "success", image_url: file.getUrl() }))
+      .setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    Logger.log("Error: " + error.toString());
+    return ContentService.createTextOutput(JSON.stringify({ result: "failure", error: "圖片抓取或儲存失敗" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 
 // 插入數據功能
 function insertData(requestBody) {
