@@ -264,6 +264,10 @@ https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_m
 - **email_subject**: 可選參數，信件的標題；若未提供，則會使用當天日期作為標題。
 - **email_content**: 必須參數，信件內容，支持HTML格式。
 
+#### `store_image_to_drive` 模式：
+- **image_url**: 必須參數，指定要下載的圖片URL。
+- **folder_name**: 可選參數，指定圖片儲存的資料夾名稱；若未提供，會以當前Spreadsheet的名稱作為資料夾名稱。
+
 ### 範例：
 
 #### 1. 插入數據至工作表 (`insert_data` 模式)：
@@ -313,4 +317,24 @@ curl -X POST \
   }'
 ```
 
+#### 3.儲存網路圖片到Google Drive (store_image_to_drive 模式)：：
 
+將指定的圖片儲存至指定的Google Drive資料夾，若資料夾名稱未指定，則以Spreadsheet名稱為資料夾名稱。
+```
+{
+  "function_name": "store_image_to_drive",
+  "image_url": "https://example.com/image.jpg",
+  "folder_name": "MyImagesFolder"
+}
+```
+使用cURL發送請求
+```
+curl -X POST \
+  https://script.google.com/macros/s/your-script-id/exec \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "function_name": "store_image_to_drive",
+    "image_url": "https://example.com/image.jpg",
+    "folder_name": "MyImagesFolder"
+  }'
+```
