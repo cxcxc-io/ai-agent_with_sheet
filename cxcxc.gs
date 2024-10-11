@@ -1108,3 +1108,39 @@ var payload = {
   var finalResult = finalResponse.candidates[0].content.parts[0].text;
   return finalResult;
 }
+
+
+
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('自訂功能表')
+      .addItem('教學說明', 'showTeachingModal')
+      .addToUi();
+}
+
+function showTeachingModal() {
+  var htmlContent = `
+  <html>
+  <head>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; }
+      h1, h2, h3 { color: #4CAF50; }
+      p { line-height: 1.6; }
+      a { color: #1E90FF; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <h1>查看完整教學</h1>
+    <p>您可以點擊以下按鈕在新視窗中查看完整的教學文件及其所有功能：</p>
+    <a href="https://github.com/cxcxc-io/ai-agent_with_sheet/blob/main/README.md" target="_blank">
+      <button style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; cursor: pointer;">在新視窗中打開 GitHub 教學</button>
+    </a>
+  </body>
+  </html>
+  `;
+
+  var htmlOutput = HtmlService.createHtmlOutput(htmlContent)
+    .setWidth(400)
+    .setHeight(200);
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, '教學說明');
+}
