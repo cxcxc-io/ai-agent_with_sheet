@@ -782,9 +782,17 @@ function insertData(requestBody) {
     throw new Error("Missing sheet_name parameter.");
   }
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(sheetName);
+
+  // 如果工作表不存在，則創建一個新的
   if (!sheet) {
-    throw new Error("Sheet not found: " + sheetName);
+    Logger.log("Sheet not found: " + sheetName + ". Creating a new sheet.");
+    sheet = spreadsheet.insertSheet(sheetName);
+    
+    // 根據 requestBody 中的鍵值生成第一行的表頭
+    var headers = Object.keys(requestBody);
+    sheet.appendRow(headers);
   }
 
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -818,6 +826,7 @@ function insertData(requestBody) {
   return ContentService.createTextOutput(JSON.stringify({ result: "success" }))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
 
 // 寄送email功能
 function mailUser(requestBody) {
