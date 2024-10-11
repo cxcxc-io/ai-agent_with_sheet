@@ -16,13 +16,26 @@
 // 將Google API Key 當成環境變數
 const apiKey = PropertiesService.getScriptProperties().getProperty("GOOGLE_AI_API_KEY")
 
+
+// 獲取模型名稱，若未設置則使用預設值 "gemini-1.5-flash"
+function getModelName() {
+  var modelName = PropertiesService.getScriptProperties().getProperty("GEMINI_MODEL_NAME");
+  
+  // 使用明確的條件檢查，避免null或undefined的情況
+  if (modelName === null || modelName === undefined || modelName.trim() === "") {
+    modelName = "gemini-1.5-flash";  // 默認值
+  }
+  
+  return modelName;
+}
 /**
  * GeminiQA
  * 此函數透過Google Apps Script調用Gemini API，針對單一問題進行問答生成。
  * 功能：接受一個問題字串，並使用Gemini API生成對應的答案。
  */
 function GeminiQA(question) {
-  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  var modelName = getModelName(); // 獲取模型名稱
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
   
   var payload = {
     "contents": [{
@@ -88,7 +101,8 @@ function GeminiQAFromImage(question, image_url) {
     ]
   };
 
-  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  var modelName = getModelName(); // 獲取模型名稱
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
 
   var options = {
     "method": "post",
@@ -133,7 +147,8 @@ function GeminiClassify(class_array, content, extra_prompt="") {
     }]
   };
 
-  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  var modelName = getModelName(); // 獲取模型名稱
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
 
   var options = {
     "method": "post",
@@ -174,6 +189,7 @@ function GeminiVector001(input_value) {
     }
   };
 
+  var modelName = getModelName(); // 獲取模型名稱
   var url = "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=" + apiKey;
 
   var options = {
@@ -518,8 +534,9 @@ function applyFilters(row, filters) {
  * 
  * 此函數處理HTTP POST請求，根據傳入的參數執行不同的功能，包括：
  * - 將請求的JSON數據插入到指定的Google Sheets工作表中。
- * - 或者，根據指定的郵件信息發送郵件給多個收件人。
- * - 或者，將網路圖片下載並存放到Google Drive指定的資料夾中。
+ * - 根據指定的郵件信息發送郵件給多個收件人。
+ * - 將網路圖片下載並存放到Google Drive指定的資料夾中。
+ * - 生成PDF文件，基於指定的Google Docs範本文件並替換範本中的參數。
  * 
  * 功能概述：
  * - 解析並處理POST請求中的JSON數據。
@@ -529,45 +546,27 @@ function applyFilters(row, filters) {
  *   - `store_image_to_drive`: 將指定的網路圖片下載並儲存到Google Drive中。
  *     - 若 `folder_name` 提供，圖片會儲存在指定資料夾中。
  *     - 若 `folder_name` 未提供，則預設使用當前 Spreadsheet 的名稱作為資料夾名稱。
- * - 自動將JSON數據中的key與工作表的表頭進行匹配，並將相應數據插入到對應的列。
- * - 如果表頭包含"vector"字樣，則自動生成向量表示並插入到該列中。
- * - 如果使用 `mail_user` 功能，則會發送電子郵件，並且如果未指定信件標題，將使用當天日期作為預設標題。
- * - 每次請求都會記錄日誌，以便後續調試和追蹤。
+ *   - `create_pdf_from_doc_template`: 基於Google Docs範本生成PDF檔案，並可指定參數進行動態替換。
+ *     - 若 `folder_name` 未提供，則預設使用範本文件的父資料夾。
+ *     - 若 `pdf_file_name` 未提供，則使用當前時間與亂碼進行命名。
+ *     - 若 `template_doc_name` 未提供，預設使用 "文件範本"。
  * 
  * POST Body 參數：
- * - function_name (required): 要執行的功能名稱，可以是 `insert_data`、`mail_user` 或 `store_image_to_drive`。
- * - 當 function_name 為 `insert_data` 時：
- *   - sheet_name (required): 要插入數據的Google Sheets工作表名稱。
- *   - 其他參數：與Google Sheets中的列名相對應的key，插入數據時會自動匹配到相應的列。
- *     - 例如，若工作表有列名 "asset_name" 和 "asset_category"，則POST Body應包含 "asset_name": "Laptop", "asset_category": "Electronics" 這類形式的數據。
- * - 當 function_name 為 `mail_user` 時：
- *   - sender_emails (required): 收件人的郵件地址列表。
- *   - email_subject (optional): 信件的標題，若未提供，預設使用當天日期作為標題。
- *   - email_content (required): 信件的內容，支持HTML格式。
- * - 當 function_name 為 `store_image_to_drive` 時：
- *   - image_url (required): 要下載的圖片的網址。
- *   - folder_name (optional): 圖片將儲存的資料夾名稱，若未提供，將使用當前 Spreadsheet 的名稱作為預設值。
+ * - function_name (required): 要執行的功能名稱，可以是 `insert_data`、`mail_user`、`store_image_to_drive` 或 `create_pdf_from_doc_template`。
+ * - 當 function_name 為 `create_pdf_from_doc_template` 時：
+ *   - template_doc_name (optional): 範本文件的名稱，若未指定，預設為 "文件範本"。
+ *   - pdf_file_name (optional): PDF檔案名稱，若未指定，使用當前時間與亂碼命名。
+ *   - folder_name (optional): 儲存 PDF 的資料夾名稱，若未指定，使用範本所在資料夾。
+ *   - replace_map (required): 包含 key-value 的替換字典，用於替換範本中的文字標記。
  * 
  * 返回結果：
  * - JSON格式，包含一個 `result` 欄位，指示操作是否成功：
- *   - "success" 表示數據成功插入、郵件成功發送或圖片成功儲存。
+ *   - "success" 表示數據成功插入、郵件成功發送或PDF成功生成。
  *   - "failure" 表示操作失敗，並包含 `error` 欄位描述錯誤訊息。
- *   - 當執行 `mail_user` 功能時，成功則返回 "email_sent_success"。
+ *   - 當執行 `create_pdf_from_doc_template` 時，成功則返回生成的 PDF 檔案鏈接。
  * 
  * 記錄日誌：
  * - 每次請求都會記錄日誌，包含時間戳、請求內容及操作結果，日誌會保存到指定的Google Sheets工作表。
- * 
- * 主要邏輯：
- * 1. 解析POST請求中的JSON數據，並檢查必須的參數 `function_name` 是否存在。
- * 2. 根據 `function_name` 決定是執行數據插入、發送郵件還是儲存圖片：
- *    - 若為 `insert_data`，則檢查 `sheet_name`，並獲取對應的Google Sheets工作表。
- *    - 將JSON數據中的key與工作表的表頭進行匹配，並將數據插入到對應的列。
- *    - 如果表頭中有包含"vector"字樣的欄位，則調用向量生成函數來生成向量表示並插入。
- *    - 記錄操作日誌，包括時間戳和請求內容。
- *    - 返回插入結果。
- *    - 若為 `mail_user`，則檢查必須的參數 `sender_emails` 和 `email_content`，若 `email_subject` 未指定，使用當天日期作為預設值，然後發送郵件給指定收件人。
- *    - 若為 `store_image_to_drive`，檢查 `image_url` 和 `folder_name`，下載圖片並儲存到 Google Drive，資料夾名稱為手動指定或當前Spreadsheet的名稱。
- *    - 記錄郵件或圖片儲存日誌並返回操作結果。
  */
 
 function doPost(e) {
@@ -591,9 +590,23 @@ function doPost(e) {
       return mailUser(requestBody);
     } else if (functionName === "store_image_to_drive") {
       // 調用儲存圖片到Google Drive的功能
-      // 如果沒有手動提供資料夾名稱，使用當前Spreadsheet的名字作為資料夾名稱
       var folderName = requestBody.folder_name || SpreadsheetApp.getActiveSpreadsheet().getName();
       return storeImageToDrive(requestBody.image_url, folderName);
+    } else if (functionName === "create_pdf_from_doc_template") {
+      // 調用生成 PDF 的功能
+      var templateDocName = requestBody.template_doc_name;
+      var pdfFileName = requestBody.pdf_file_name;
+      var folderName = requestBody.folder_name;
+      var replaceMap = requestBody.replace_map;
+      
+      // 檢查必要參數
+      if (!replaceMap) {
+        throw new Error("Missing parameters for creating PDF.");
+      }
+
+      // 調用 createPDFfromTemplate 函數來生成 PDF
+      var result = createPDFfromDocTemplate(templateDocName, pdfFileName, replaceMap, folderName);
+      return ContentService.createTextOutput(result).setMimeType(ContentService.MimeType.JSON);
     } else {
       throw new Error("Invalid function_name: " + functionName);
     }
@@ -606,6 +619,128 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
+
+/**
+ * createPDFfromDocTemplate
+ * 
+ * 此函數基於指定的Google Docs範本文件，生成PDF檔案，並替換範本中的指定參數。
+ * 
+ * 功能：
+ * - 使用範本文件生成PDF，並根據傳入的replace_map進行內容替換。
+ * - 若 `template_doc_name` 未指定，預設為 "文件範本"。
+ * - 若 `folder_name` 未指定，則使用範本文件所在的資料夾。
+ * - 若 `pdf_file_name` 未指定，則使用當前時間加上隨機碼命名；若有指定，則在時間後附加用戶指定的名稱。
+ * - 最後返回生成的PDF鏈接和文件名稱。
+ * 
+ * @param {string} templateDocName - Google Docs範本的名稱。
+ * @param {string} pdfFileName - 生成的PDF檔案名稱。
+ * @param {object} replaceMap - 替換字典，用於替換範本中的標記。
+ * @param {string} folderName - 儲存生成PDF的資料夾名稱。
+ * @returns {string} - 包含生成結果的JSON字串，若成功包含PDF的鏈接，若失敗包含錯誤訊息。
+ */
+function createPDFfromDocTemplate(templateDocName, pdfFileName, replaceMap, folderName) {
+  try {
+    // 如果 templateDocName 沒有指定，則使用 "文件範本" 作為預設值
+    if (!templateDocName) {
+      templateDocName = "文件範本";
+    }
+
+    // 透過檔名來取得範本文件
+    var files = DriveApp.getFilesByName(templateDocName);
+    
+    if (!files.hasNext()) {
+      return JSON.stringify({
+        "result": "failure",
+        "message": "範本文件未找到"
+      });
+    }
+
+    var templateFile = files.next();
+    var templateDoc = DocumentApp.openById(templateFile.getId());
+    
+    // 複製範本文件
+    var copiedDoc = templateFile.makeCopy();
+    var copiedDocId = copiedDoc.getId();
+    var copiedDocFile = DocumentApp.openById(copiedDocId);
+    
+    // 進行多個內容變更，replaceMap 是一個物件，用來進行多個文字替換
+    var body = copiedDocFile.getBody();
+    
+    for (var key in replaceMap) {
+      if (replaceMap.hasOwnProperty(key)) {
+        body.replaceText(key, replaceMap[key]); // 將範本中的 key 替換為對應的 value
+      }
+    }
+
+    // 儲存變更
+    copiedDocFile.saveAndClose();
+    
+    // 如果沒有提供 folderName，使用範本文件所在的資料夾
+    var targetFolder;
+    if (!folderName) {
+      targetFolder = templateFile.getParents().next(); // 使用範本文件的父資料夾
+    } else {
+      // 透過名稱找到指定的資料夾
+      var folders = DriveApp.getFoldersByName(folderName);
+      
+      if (!folders.hasNext()) {
+        return JSON.stringify({
+          "result": "failure",
+          "message": "指定的資料夾未找到"
+        });
+      }
+
+      targetFolder = folders.next();
+    }
+
+    // 生成當前時間戳，格式：yyyymmddHHMMss
+    var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMddHHmmss");
+    
+    // 生成隨機碼
+    var randomString = Math.random().toString(36).substring(2, 8); // 產生6位亂碼
+    
+    // 如果沒有提供 pdfFileName，則使用當前時間與亂碼來命名；如果有提供，則附加在時間後
+    if (!pdfFileName) {
+      pdfFileName = timestamp + "-" + randomString;
+    } else {
+      pdfFileName = timestamp + "-" + pdfFileName;
+    }
+    
+    // 將複製的文件轉換為 PDF
+    var pdfBlob = DriveApp.getFileById(copiedDocId).getAs('application/pdf');
+    
+    // 在目標資料夾中儲存 PDF，檔名由參數決定
+    var pdfFile = targetFolder.createFile(pdfBlob).setName(pdfFileName + '.pdf');
+    
+    // 設定權限為「有連結的人可讀」
+    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    // 刪除複製的文件
+    DriveApp.getFileById(copiedDocId).setTrashed(true);
+    
+    // 取得 PDF 檔案的網頁連結
+    var webLink = pdfFile.getUrl();
+    
+    // 回傳 JSON 結果
+    var result = {
+      "result": "success",
+      "fileName": pdfFileName + '.pdf',
+      "fileLink": webLink,
+      "message": "PDF 已生成並設為有連結的人可讀"
+    };
+    
+    Logger.log(JSON.stringify(result)); // 可用於檢查結果
+    return JSON.stringify(result);
+
+  } catch (error) {
+    Logger.log("Error: " + error.message);
+    return JSON.stringify({
+      "result": "failure",
+      "message": "發生錯誤: " + error.message
+    });
+  }
+}
+
 
 // 儲存圖片至google drive，若無指定資料夾名字，則以當前spreadsheet名字當成資料夾名字
 function storeImageToDrive(imageUrl, folderName) {
@@ -730,7 +865,8 @@ function saveLogToSheet(sheetName, log) {
 // Gemini with Function tool
 function GeminiQAWithWeb(user_question) {
   
-  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  var modelName = getModelName(); // 獲取模型名稱
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
   
   // user_question="what kind book in there https://www.amazon.co.jp/kindle-dbs/storefront?storeType=browse&node=2275256051"
   // user_question="visit content from https://langchain-ai.github.io/langgraph/tutorials/introduction/#requirements"
@@ -936,7 +1072,8 @@ function GeminiFetchUrl(args) {
  * 將用戶問題和抓取的數據發送回 Gemini 以獲取最終回答
  */
 function sendFinalRequestToGemini(user_question, fetchedData) {
-  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+  var modelName = getModelName(); // 獲取模型名稱
+  var url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
 
 var payload = {
     "contents": [{
