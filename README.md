@@ -9,6 +9,10 @@
 - **HTTP GET/POST 數據處理**：自動化Google Sheets中的數據查詢、插入與更新。
 - **AI 問答與分類**：透過Google Gemini API進行文本問答生成及文本分類操作。
 - **文本向量生成與相似度計算**：將文本轉換為向量表示，並計算其相似度。
+- **圖片問答解析：提供圖片URL，將圖片轉換為Base64後，透過Gemini API進行問答。
+- **網頁內容抓取與問答生成：自動抓取指定網頁內容，並進行問答生成，增強答案的準確性。
+- **PDF文件生成：基於Google Docs範本自動生成PDF文件，並可指定範本參數進行動態替換。
+- **圖片儲存至Google Drive：自動下載網路圖片並儲存至Google Drive資料夾。
 
 ## 應用場景
 
@@ -236,6 +240,7 @@ https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_m
 - **`insert_data`**：將請求的JSON數據插入到指定的Google Spreadsheet工作表中，並根據表頭自動匹配相應的欄位進行插入。
 - **`mail_user`**：根據提供的收件人列表發送郵件，若未指定信件標題，則會自動使用當天日期作為預設標題。
 - **`store_image_to_drive`**：將指定的網路圖片下載並儲存到Google Drive中，若提供了 `folder_name`，則會儲存在指定資料夾內，否則將以當前Spreadsheet的名稱作為資料夾名稱。
+- **`create_pdf_from_doc_template`**：使用指定的Google Docs範本自動生成PDF，並根據POST中的替換字典自動替換範本中的關鍵字或標記。可選擇將生成的PDF儲存在指定的Google Drive資料夾中，並設定權限為「有連結的人可讀」，方便共享。若未提供檔案名稱或資料夾，系統將自動命名並儲存於範本文件的父資料夾中。
 
 
 這些功能適合於需要自動化地將數據寫入Google Spreadsheet或發送郵件的情境。
@@ -269,6 +274,13 @@ https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_m
 #### `store_image_to_drive` 模式：
 - **image_url**: 必須參數，指定要下載的圖片URL。
 - **folder_name**: 可選參數，指定圖片儲存的資料夾名稱；若未提供，會以當前Spreadsheet的名稱作為資料夾名稱。
+
+#### `create_pdf_from_doc_template` 模式：
+- **template_doc_name**: 可選參數，指定Google Docs範本文件名稱，若未提供，則使用"文件範本"作為預設名稱。
+- **pdf_file_name**: 可選參數，生成的PDF檔案名稱，若未指定，則使用當前時間戳與隨機碼生成唯一名稱。
+- **folder_name**: 可選參數，指定儲存生成PDF的Google Drive資料夾名稱，若未提供，則使用範本所在資料夾。
+- **replace_map**: 必須參數，包含範本替換字典，用於動態替換範本中的文字。
+
 
 ### 範例：
 
@@ -339,4 +351,35 @@ curl -X POST \
     "image_url": "https://example.com/image.jpg",
     "folder_name": "MyImagesFolder"
   }'
+```
+
+#### 4.基於範本生成PDF (create_pdf_from_doc_template 模式)：
+
+```
+{
+  "function_name": "create_pdf_from_doc_template",
+  "template_doc_name": "課程證書範本",
+  "pdf_file_name": "學員證書",
+  "folder_name": "證書",
+  "replace_map": {
+    "{{姓名}}": "張三",
+    "{{課程名稱}}": "AI應用課程"
+  }
+}
+```
+使用cURL發送請求
+```
+curl -X POST \
+  https://script.google.com/macros/s/your-script-id/exec \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "function_name": "create_pdf_from_doc_template",
+  "template_doc_name": "課程證書範本",
+  "pdf_file_name": "學員證書",
+  "folder_name": "證書",
+  "replace_map": {
+    "{{姓名}}": "張三",
+    "{{課程名稱}}": "AI應用課程"
+  }
+}'
 ```
