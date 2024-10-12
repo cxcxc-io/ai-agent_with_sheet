@@ -668,7 +668,7 @@ function createPDFfromDocTemplate(templateDocName, pdfFileName, replaceMap, fold
     
     for (var key in replaceMap) {
       if (replaceMap.hasOwnProperty(key)) {
-        body.replaceText(key, replaceMap[key]); // 將範本中的 key 替換為對應的 value
+        body.replaceText("{{"+key+"}}", replaceMap[key]); // 將範本中的 key 替換為對應的 value
       }
     }
 
