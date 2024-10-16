@@ -1,0 +1,5 @@
+google-cloud-storage
+google-cloud-firestore
+Flask
+line-bot-sdk
+gunicorn
