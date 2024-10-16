@@ -4,7 +4,7 @@
 下載資料夾到cloud shell editor
 
 ```
-https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2Fcxcxc-io%2Fai-agent_with_sheet&cloudshell_open_in_editor=gcp_ai_cloud_run%2FREADME.md&cloudshell_workspace=gcp_ai_cloud_run
+https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2Fcxcxc-io%2Fai-agent_with_sheet&cloudshell_open_in_editor=README.md&cloudshell_workspace=gcp_ai_cloud_run
 ```
 
 # 建立Artifact registry
