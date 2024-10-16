@@ -1,4 +1,6 @@
 
+
+
 # 部屬集成式AI應用
 
 下載資料夾到cloud shell editor
@@ -16,5 +18,10 @@ gcloud artifacts repositories create ai-demo --location=asia-east1 --repository-
 ```
 gcloud builds submit --tag asia-east1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/ai-demo/web-app:0.0.1
 ```
+
+# Service Account 的籌備
+
+
+# 部屬到Cloud Run
 
 打開cloud run 介面，進行部屬
