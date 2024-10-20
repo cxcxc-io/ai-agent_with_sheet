@@ -1,4 +1,4 @@
-# 雲育鏈職場AI軟體暨雲端應用課程 - Google Apps Script 工具集
+# 雲育鏈 AI-Agent 與 Sheet with AI - Google Apps Script 工具集
 
 ## 專案簡介
 
