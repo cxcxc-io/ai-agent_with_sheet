@@ -1,0 +1,338 @@
+info:
+    description: help user to send email,  insert data to sheet, query data with rag,  save image to google drive,  make pdf from google template
+    title: google_appscript_function
+    version: v1
+openapi: 3.0.1
+paths:
+    /exec?feature=create_pdf_from_doc_template:
+        post:
+            operationId: create_pdf_from_doc_template
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                folder_name:
+                                    description: folder_name
+                                    type: string
+                                function_name:
+                                    default: create_pdf_from_doc_template
+                                    description: function_name
+                                    type: string
+                                pdf_file_name:
+                                    description: pdf_file_name
+                                    type: string
+                                replace_map:
+                                    description: replace_map
+                                    properties:
+                                        date:
+                                            description: date
+                                            type: string
+                                        name:
+                                            description: name
+                                            type: string
+                                        something_you_want_insert:
+                                            description: something_you_want_insert
+                                            type: string
+                                    required:
+                                        - name
+                                        - date
+                                        - something_you_want_insert
+                                    type: object
+                                template_doc_name:
+                                    default: 文件範本
+                                    description: template_doc_name
+                                    type: string
+                            required:
+                                - replace_map
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    fileLink:
+                                        type: string
+                                    fileName:
+                                        type: string
+                                    message:
+                                        type: string
+                                    result:
+                                        type: string
+                                type: object
+                    description: new desc
+                default:
+                    description: ""
+            summary: You can take the string set by the user, paste it into a document, and generate a PDF file from it.
+    /exec?feature=insert_data_to_sheet:
+        post:
+            operationId: insert_data_to_sheet
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                asset_name:
+                                    description: asset_name
+                                    type: string
+                                function_name:
+                                    default: 'insert_data '
+                                    description: function_name
+                                    type: string
+                                sheet_name:
+                                    default: 資料紀錄
+                                    description: sheet_name
+                                    type: string
+                                somecolumn_you_want_to_record:
+                                    description: somecolumn_you_want_to_record
+                                    type: string
+                                vector_asset_name:
+                                    description: auto transfer to vector
+                                    type: string
+                            required:
+                                - somecolumn_you_want_to_record
+                                - asset_name
+                                - vector_asset_name
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    error:
+                                        type: string
+                                    result:
+                                        type: string
+                                type: object
+                    description: new desc
+                default:
+                    description: ""
+            summary: Insert the requested JSON data into the specified Google Spreadsheet worksheet, automatically matching and inserting the corresponding fields based on the header.
+    /exec?feature=mail_to_user:
+        post:
+            operationId: mail_to_user
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                email_content:
+                                    description: email_content
+                                    type: string
+                                email_subject:
+                                    description: email_subject
+                                    type: string
+                                function_name:
+                                    default: mail_user
+                                    description: function_name
+                                    type: string
+                                sender_emails:
+                                    description: sender_emails
+                                    items:
+                                        description: sender_email
+                                        type: string
+                                    type: array
+                            required:
+                                - sender_emails
+                                - email_subject
+                                - email_content
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    result:
+                                        type: string
+                                type: object
+                    description: new desc
+                default:
+                    description: ""
+            summary: use your gmail account to send mail to user
+    /exec?feature=query_data_by_rag:
+        get:
+            operationId: query_data_by_rag
+            parameters:
+                - description: sheet_name
+                  in: query
+                  name: sheet_name
+                  schema:
+                    default: 工作表1
+                    type: string
+                - description: query_mode
+                  in: query
+                  name: query_mode
+                  schema:
+                    default: rag
+                    type: string
+                - description: page
+                  in: query
+                  name: page
+                  schema:
+                    default: "1"
+                    type: string
+                - description: page_size
+                  in: query
+                  name: page_size
+                  schema:
+                    default: "1000"
+                    type: string
+                - description: somethine u input
+                  in: query
+                  name: search_term
+                  required: true
+                  schema:
+                    type: string
+                - description: compare_vector_column
+                  in: query
+                  name: compare_vector_column
+                  schema:
+                    default: vector_asset_name
+                    type: string
+                - description: threshold
+                  in: query
+                  name: threshold
+                  schema:
+                    default: "0.7"
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                items:
+                                    properties:
+                                        asset_amount:
+                                            type: number
+                                        asset_category:
+                                            type: string
+                                        asset_locate:
+                                            type: string
+                                        asset_manager:
+                                            type: string
+                                        asset_name:
+                                            type: string
+                                        manager_email:
+                                            type: string
+                                        threshold:
+                                            type: number
+                                    type: object
+                                type: array
+                    description: new desc
+                default:
+                    description: ""
+            summary: The user must set up the query for the Google Sheets, input the query statement, and specify the vector column and threshold for comparison.
+    /exec?feature=query_data_by_specific_value:
+        get:
+            operationId: query_data_by_specific_value
+            parameters:
+                - description: sheet_name
+                  in: query
+                  name: sheet_name
+                  schema:
+                    default: 工作表1
+                    type: string
+                - description: query_mode
+                  in: query
+                  name: query_mode
+                  schema:
+                    default: normal
+                    type: string
+                - description: page
+                  in: query
+                  name: page
+                  schema:
+                    default: 1
+                    type: integer
+                - description: 'page_size '
+                  in: query
+                  name: page_size
+                  schema:
+                    default: 100
+                    type: integer
+                - description: something_you_want_to_query
+                  in: query
+                  name: something_you_want_to_query
+                  schema:
+                    type: string
+                - description: asset_name
+                  in: query
+                  name: asset_name
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                items:
+                                    properties:
+                                        asset_amount:
+                                            type: number
+                                        asset_category:
+                                            type: string
+                                        asset_locate:
+                                            type: string
+                                        asset_manager:
+                                            type: string
+                                        asset_name:
+                                            type: string
+                                        manager_email:
+                                            type: string
+                                    type: object
+                                type: array
+                    description: new desc
+                default:
+                    description: ""
+            summary: The user must set up the query for the Google Sheets, specify the query column, and input an exact value in order to retrieve the result.
+    /exec?feature=store_image_to_drive:
+        post:
+            operationId: store_image_to_drive
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                folder_name:
+                                    description: folder_name
+                                    type: string
+                                function_name:
+                                    default: store_image_to_drive
+                                    description: function_name
+                                    type: string
+                                image_url:
+                                    description: image_url
+                                    type: string
+                            required:
+                                - image_url
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    image_url:
+                                        type: string
+                                    result:
+                                        type: string
+                                type: object
+                    description: new desc
+                default:
+                    description: ""
+            summary: After retrieving the image URL sent by the user, download the image and store it in Google Drive.
+servers:
+    - url: https://script.google.com/macros/s
