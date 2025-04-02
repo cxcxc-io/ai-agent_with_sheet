@@ -12,7 +12,7 @@
 - **圖片問答解析：提供圖片URL，將圖片轉換為Base64後，透過Gemini API進行問答。
 - **網頁內容抓取與問答生成：自動抓取指定網頁內容，並進行問答生成，增強答案的準確性。
 - **PDF文件生成：基於Google Docs範本自動生成PDF文件，並可指定範本參數進行動態替換。
-
+- **圖片儲存至Google Drive：自動下載網路圖片並儲存至Google Drive資料夾。
 
 ## 應用場景
 
@@ -174,7 +174,64 @@
 GeminiQAWithWeb("What content is available on https://example.com?")
 ```
 
+## `doGet` 使用教學
 
+### 功能：
+`doGet` 函數用於處理HTTP GET請求，從Google Spreadsheet中提取數據並根據查詢參數進行過濾、排序及分頁。此功能特別適合於需要從表格中動態提取數據的應用場景，例如生成API端點以供外部應用程序訪問數據。
+
+### 使用方式：
+
+1. **在Google Apps Script中部署Web應用**：
+   - 在Google Apps Script編輯器中，點擊 `部署` > `部署為網頁應用`。
+   - 設定誰可以訪問應用為 `任何擁有此應用程式網址的人`。
+   - 點擊 `部署` 並獲取應用的URL。
+
+2. **通過HTTP GET請求使用`doGet`**：
+   - 使用Web瀏覽器或HTTP客戶端（如Postman、cURL）訪問該應用的URL，並添加查詢參數進行數據查詢。
+   - 範例URL格式：
+   ```url
+   https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_mode=normal&filter_column=colA=ValueA&exclude_columns=colB
+### 共通的查詢參數說明
+* **sheet_name** (required): 指定要查詢的工作表名稱。
+* **query_mode** (optional): 查詢模式，支持 normal、rag 和 graph_rag 模式。預設為 normal。
+* **exclude_columns** (optional): 需要排除的欄位名稱列表，以逗號分隔（如 colA,colB,colC）。
+- **page** (optional): 指定返回結果的頁碼，預設為第1頁。
+- **page_size** (optional): 指定每頁返回的記錄數量，預設為10。
+
+### `doGet` 模式查詢說明與範例
+
+### normal 模式
+
+#### 說明：
+`normal` 模式是最基本的查詢模式，允許您根據指定的查詢參數從Google Spreadsheet中提取並篩選數據。您可以使用篩選條件、排除特定欄位、進行分頁等操作。
+
+#### 查詢參數：
+
+- **資料表內任意欄位**: 依照你資料表現有的欄位資料篩選
+
+#### 範例：
+查詢 `Sheet1` 中符合 `colA` 等於 `ValueA` 的數據，排除 `colB`，並顯示第1頁的前10條結果。
+
+```url
+https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_mode=normal&exclude_columns=colB&page=1&page_size=10&your_data_column_name>=10
+```
+
+### rag 模式
+
+#### 說明：
+`rag` 模式（基於向量檢索的增強生成模式）允許您將查詢字串轉換為向量，並與指定欄位中的向量進行相似度比較。此模式特別適合於需要基於語義相似度進行數據篩選的場景。
+
+#### 查詢參數：
+- **search_term**: 用於查詢的字串，將被轉換為向量以進行相似度比較。
+- **compare_vector_column**: 指定與 `search_term` 生成的向量進行比較的欄位名稱。
+- **threshold**: 指定相似度閾值，僅保留相似度大於等於該閾值的結果。
+
+#### 範例：
+查詢 `Sheet1` 中，`search_term` 與 `vector_col` 中的向量相似度大於等於 `0.75` 的數據，並顯示第1頁的前10條結果。
+
+```url
+https://script.google.com/macros/s/your-script-id/exec?sheet_name=Sheet1&query_mode=rag&search_term=Example%20Query&compare_vector_column=vector_col&threshold=0.75&page=1&page_size=10
+```
 
 ## `doPost` 使用教學
 
@@ -202,22 +259,40 @@ GeminiQAWithWeb("What content is available on https://example.com?")
 ### POST Body 格式：
 請求正文應為JSON格式，包含以下參數：
 
+#### 通用參數：
+- **function_name**: 指定所需執行的功能，可以是 `insert_data` 或 `mail_user`。
+
+#### `insert_data` 模式：
+- **sheet_name**: 必須參數，指定要插入數據的Google Spreadsheet工作表名稱。
+- 其他字段：需對應Google Spreadsheet中的列名。
+
+#### `mail_user` 模式：
+- **sender_emails**: 必須參數，收件人的郵件地址列表。
+- **email_subject**: 可選參數，信件的標題；若未提供，則會使用當天日期作為標題。
+- **email_content**: 必須參數，信件內容，支持HTML格式。
+
+#### `store_image_to_drive` 模式：
+- **image_url**: 必須參數，指定要下載的圖片URL。
+- **folder_name**: 可選參數，指定圖片儲存的資料夾名稱；若未提供，會以當前Spreadsheet的名稱作為資料夾名稱。
+
+#### `create_pdf_from_doc_template` 模式：
+- **template_doc_name**: 可選參數，指定Google Docs範本文件名稱，若未提供，則使用"文件範本"作為預設名稱。
+- **pdf_file_name**: 可選參數，生成的PDF檔案名稱，若未指定，則使用當前時間戳與隨機碼生成唯一名稱。
+- **folder_name**: 可選參數，指定儲存生成PDF的Google Drive資料夾名稱，若未提供，則使用範本所在資料夾。
+- **replace_map**: 必須參數，包含範本替換字典，用於動態替換範本中的文字。
 
 
 ### 範例：
 
 #### 1. 插入數據至工作表 (`insert_data` 模式)：
+將 `name` 和 `email` 插入至名為 `Sheet1` 的工作表中。
 
 ```json
 {
+  "function_name": "insert_data",
   "sheet_name": "Sheet1",
-  "operate_method": "insert_data",
-  "data": {
-    "id": "001",
-    "columnB_name": "王小明",
-    "columnC_name": "這是一筆測試資料"
-  },
-  "index_column_name": "id"
+  "name": "John Doe",
+  "email": "johndoe@example.com"
 }
 ```
 
@@ -227,228 +302,84 @@ curl -X POST \
   https://script.google.com/macros/s/your-script-id/exec \
   -H 'Content-Type: application/json' \
   -d '{
-  "sheet_name": "Sheet1",
-  "operate_method": "insert_data",
-  "data": {
-    "id": "001",
-    "columnB_name": "王小明",
-    "columnC_name": "這是一筆測試資料"
-  },
-  "index_column_name": "id"
-}'
+    "function_name": "insert_data",
+    "sheet_name": "Sheet1",
+    "name": "John Doe",
+    "email": "johndoe@example.com"
+  }'
 ```
 
-Response
+#### 2. 發送郵件 (mail_user 模式)：
+
+發送一封內容為 Welcome! 的信件，標題為當天日期，給多個收件人。
 ```
 {
-  "status": "success",
-  "message": "新增資料成功"
+  "function_name": "mail_user",
+  "sender_emails": ["user1@example.com", "user2@example.com"],
+  "email_content": "<h1>Welcome!</h1><p>Thank you for joining us!</p>"
 }
-```
-#### . 查詢資料 (read_data) (一般查詢 模式)：
-
-Request data format
-```
-{
-  "sheet_name": "Sheet1",
-  "operate_method": "read_data",
-  "data": {
-    "id": "001"
-  },
-  "index_column_name": "id"
-}
-```
-
-curl 範例
-```
-curl -X POST "YOUR_WEBHOOK_URL" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "sheet_name": "Sheet1",
-        "operate_method": "read_data",
-        "data": {
-          "id": "001"
-        },
-        "index_column_name": "id"
-      }'
-```
-
-Response format
-```
-{
-  "status": "success",
-  "data": [
-    {
-      "id": "001",
-      "name": "王小明",
-      "content": "這是一筆測試資料",
-      "similarity": 0.98
-    }
-  ]
-}
-```
-#### . 查詢資料 (read_data) (向量查詢 模式)：
-
-request format
-```
-{
-  "sheet_name": "Sheet1",
-  "operate_method": "read_data",
-  "data": {
-    "columnA_name": "測試向量查詢的內容"
-  },
-  "index_column_name": "vector_columnA_name",
-  "threshold": "0.8"
-}
-```
-curl format
-```
-curl -X POST "YOUR_WEBHOOK_URL" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "sheet_name": "Sheet1",
-        "operate_method": "read_data",
-        "data": {
-          "columnA_name": "測試向量查詢的內容"
-        },
-        "index_column_name": "vector_columnA_name",
-        "threshold": "0.8"
-      }'
-
-```
-
-response format
-```
-{
-  "status": "success",
-  "data": [
-    {
-      "id": "001",
-      "name": "王小明",
-      "content": "這是一筆測試資料",
-      "similarity": 0.85
-    }
-  ]
-}
-
-```
-#### .更新資料 (update_data 模式)：
-
-Request format
-```
-{
-  "sheet_name": "Sheet1",
-  "operate_method": "update_data",
-  "data": {
-    "id": "001",
-    "name": "王大明",
-    "content": "更新後的內容"
-  },
-  "index_column_name": "id"
-}
-
-```
-curl format
-```
-curl -X POST "YOUR_WEBHOOK_URL" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "sheet_name": "Sheet1",
-        "operate_method": "update_data",
-        "data": {
-          "id": "001",
-          "name": "王大明",
-          "content": "更新後的內容"
-        },
-        "index_column_name": "id"
-      }'
-```
-Response format
-```
-{
-  "status": "success",
-  "message": "更新資料成功"
-}
-```
-#### .刪除資料 (delete_data)：
-Request format
-```
-{
-  "sheet_name": "Sheet1",
-  "operate_method": "delete_data",
-  "data": {
-    "id": "001"
-  },
-  "index_column_name": "id"
-}
-```
-curl format
-```
-curl -X POST "YOUR_WEBHOOK_URL" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "sheet_name": "Sheet1",
-        "operate_method": "delete_data",
-        "data": {
-          "id": "001"
-        },
-        "index_column_name": "id"
-      }'
-
-```
-Response format
-```
-{
-  "status": "success",
-  "message": "刪除資料成功"
-}
-```
-
-
-#### .基於範本生成PDF (create_pdf_from_doc_template 模式)：
-
-```
-{
-  "operate_method": "generate_pdf",
-  "data": {
-    "template_name": "文件範本",
-    "generate_pdf_name": "報告",
-    "folder_name": "PDF資料夾",
-    "replace_map": {
-      "title": "報告標題",
-      "date": "20250402"
-    }
-  }
-}
-
 ```
 使用cURL發送請求
 ```
-curl -X POST "YOUR_WEBHOOK_URL" \
-  -H "Content-Type: application/json" \
+curl -X POST \
+  https://script.google.com/macros/s/your-script-id/exec \
+  -H 'Content-Type: application/json' \
   -d '{
-        "operate_method": "generate_pdf",
-        "data": {
-          "template_name": "文件範本",
-          "generate_pdf_name": "報告",
-          "folder_name": "PDF資料夾",
-          "replace_map": {
-            "title": "報告標題",
-            "date": "20250402"
-          }
-        }
-      }'
-
+    "function_name": "mail_user",
+    "sender_emails": ["user1@example.com", "user2@example.com"],
+    "email_content": "<h1>Welcome!</h1><p>Thank you for joining us!</p>"
+  }'
 ```
 
-Response format
+#### 3.儲存網路圖片到Google Drive (store_image_to_drive 模式)：：
+
+將指定的圖片儲存至指定的Google Drive資料夾，若資料夾名稱未指定，則以Spreadsheet名稱為資料夾名稱。
+```
+{
+  "function_name": "store_image_to_drive",
+  "image_url": "https://example.com/image.jpg",
+  "folder_name": "MyImagesFolder"
+}
+```
+使用cURL發送請求
+```
+curl -X POST \
+  https://script.google.com/macros/s/your-script-id/exec \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "function_name": "store_image_to_drive",
+    "image_url": "https://example.com/image.jpg",
+    "folder_name": "MyImagesFolder"
+  }'
+```
+
+#### 4.基於範本生成PDF (create_pdf_from_doc_template 模式)：
 
 ```
 {
-  "result": "success",
-  "fileName": "20250402-報告.pdf",
-  "fileLink": "https://drive.google.com/...",
-  "message": "PDF 已生成並設為有連結的人可讀"
+  "function_name": "create_pdf_from_doc_template",
+  "template_doc_name": "課程證書範本",
+  "pdf_file_name": "學員證書",
+  "folder_name": "證書",
+  "replace_map": {
+    "{{姓名}}": "張三",
+    "{{課程名稱}}": "AI應用課程"
+  }
 }
-
+```
+使用cURL發送請求
+```
+curl -X POST \
+  https://script.google.com/macros/s/your-script-id/exec \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "function_name": "create_pdf_from_doc_template",
+  "template_doc_name": "課程證書範本",
+  "pdf_file_name": "學員證書",
+  "folder_name": "證書",
+  "replace_map": {
+    "{{姓名}}": "張三",
+    "{{課程名稱}}": "AI應用課程"
+  }
+}'
 ```
