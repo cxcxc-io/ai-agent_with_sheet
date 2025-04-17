@@ -542,7 +542,18 @@ function doPost(e) {
         sheet.appendRow(newRow);
         result = {status: "success", message: "新增資料成功"};
         break;
-        
+      case "normal_insert_data":
+        // 只將 data 原始欄位存入試算表，不調用 AI 模型與向量化
+        for (var key in data) {
+          data[key] = stringifyIfObject(data[key]);
+          ensureHeader(key);
+        }
+        var newRow = headers.map(function(header) {
+          return (data[header] !== undefined) ? data[header] : "";
+        });
+        sheet.appendRow(newRow);
+        result = { status: "success", message: "新增資料成功 (normal_insert_data)" };
+        break;    
       case "read_data":
         // 將 threshold 轉換為數值型態 (用於向量查詢)
         threshold = parseFloat(threshold);
