@@ -338,7 +338,8 @@ function doPost(e) {
         var allData = sheet.getDataRange().getValues();
         var rowIndex = -1;
         for (var i = 1; i < allData.length; i++) {
-          if (allData[i][headers.indexOf(indexColumnName)] == searchValue) {
+          var row = allData[i];
+          if (row[headers.indexOf(indexColumnName)] == searchValue) {
             rowIndex = i + 1;
             break;
           }
