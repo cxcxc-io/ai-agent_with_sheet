@@ -278,9 +278,16 @@ function doPost(e) {
 
     // 輔助函數：若標題中沒有該欄位則新增
     function ensureHeader(columnName) {
+      // 避免將空字串或未定義的欄位名稱加入表頭
+      if (columnName === undefined || columnName === null || columnName === "") {
+        Logger.log("ensureHeader 收到空白欄位名稱，略過建立表頭。");
+        return;
+      }
       if (headers.indexOf(columnName) === -1) {
         headers.push(columnName);
+        // 註解：透過 setValue 直接寫入標題列，Google Sheets 會自動擴展欄位
         sheet.getRange(1, headers.length).setValue(columnName);
+        Logger.log("ensureHeader 已新增欄位：" + columnName);
       }
     }
     // 輔助函數：若資料是物件則轉換為 JSON 字串
@@ -334,12 +341,55 @@ function doPost(e) {
         for (var key in data) {
           data[key] = stringifyIfObject(data[key]);
         }
+        // 先確保主欄位名稱存在於表頭
+        if (!indexColumnName) {
+          Logger.log("update_data 缺少主欄位名稱 indexColumnName，無法執行更新。");
+          result = { status: "error", message: "缺少主欄位名稱 indexColumnName" };
+          break;
+        }
+        ensureHeader(indexColumnName);
+        // 註解：重新同步 headers，確保剛新增的欄位同步反映在記憶體中
+        headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
         var searchValue = data[indexColumnName];
+        // 當主欄位值缺失時，不做更新避免誤蓋資料，改為 append 新資料
+        if (searchValue === undefined || searchValue === "") {
+          Logger.log("update_data 缺少主欄位值，改為 append 新資料。");
+          for (var key in data) {
+            ensureHeader(key);
+          }
+          var appendRow = headers.map(function(header) {
+            return data[header] !== undefined ? data[header] : "";
+          });
+          sheet.appendRow(appendRow);
+          Logger.log("update_data 已改為 append 新資料: " + JSON.stringify(appendRow));
+          result = { status: "success", message: "主欄位缺值，已改為新增資料" };
+          break;
+        }
         var allData = sheet.getDataRange().getValues();
         var rowIndex = -1;
+        var indexColumnPosition = headers.indexOf(indexColumnName);
+        if (indexColumnPosition === -1) {
+          Logger.log("update_data 在重新同步後仍找不到主欄位：" + indexColumnName + "，嘗試再次建立表頭。");
+          ensureHeader(indexColumnName);
+          headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+          indexColumnPosition = headers.indexOf(indexColumnName);
+        }
+        if (indexColumnPosition === -1) {
+          Logger.log("update_data 無法建立主欄位：" + indexColumnName + "，改為 append 新資料。");
+          for (var key in data) {
+            ensureHeader(key);
+          }
+          var fallbackRow = headers.map(function(header) {
+            return data[header] !== undefined ? data[header] : "";
+          });
+          sheet.appendRow(fallbackRow);
+          Logger.log("update_data 主欄位建立失敗 fallback append 資料: " + JSON.stringify(fallbackRow));
+          result = { status: "success", message: "主欄位建立失敗，已改為新增資料" };
+          break;
+        }
         for (var i = 1; i < allData.length; i++) {
           var row = allData[i];
-          if (row[headers.indexOf(indexColumnName)] == searchValue) {
+          if (row[indexColumnPosition] == searchValue) {
             rowIndex = i + 1;
             break;
           }
@@ -357,6 +407,9 @@ function doPost(e) {
           result = { status: "success", message: "找不到資料已自動新增 (upsert)" };
         } else {
           // 找到則更新
+          for (var key in data) {
+            ensureHeader(key);
+          }
           for (var key in data) {
             var colPos = headers.indexOf(key);
             if (colPos !== -1) {
