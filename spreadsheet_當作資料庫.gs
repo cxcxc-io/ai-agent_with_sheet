@@ -56,6 +56,97 @@
 // Google Apps Script 多功能自動化主程式（無 Gemini AI 功能）
 // ==================================
 
+
+
+/**
+ * 模擬調用遠端 Workflow API，並提取 response 中 outputs 裡的 result 內容。
+ * * @param {string} apiKey 您的 API 密鑰。
+ * @param {string} userInput 傳遞給 Workflow 的輸入值。
+ * @return {string|null} Workflow 執行結果中的 result 內容，如果失敗則返回 null。
+ */
+function runWorkflowAndGetResult(userInput) {
+  // --- 1. 定義 API 參數 ---
+  const apiKey = "你的Workflow API KEY"
+  const url = 'http://{你的DIFY網址或ip}/v1/workflows/run';
+  const bearToken = 'Bearer ' + apiKey; // 替換為您的實際 API Key
+  const payload = {
+    'inputs': {
+      'user_input': userInput || 'test' // 使用傳入的 userInput 或預設值
+    },
+    'response_mode': 'blocking',
+    'user': 'abc-123'
+  };
+
+  // 將 JavaScript 物件轉換為 JSON 字串
+  const payloadJson = JSON.stringify(payload);
+
+  // --- 2. 準備請求選項 (Headers & Payload) ---
+  const options = {
+    'method': 'post', // 設置請求方法為 POST
+    'contentType': 'application/json', // 設置 Content-Type
+    'headers': {
+      'Authorization': bearToken // 設置 Authorization Header
+    },
+    'payload': payloadJson, // 設置請求主體
+    'muteHttpExceptions': true // 避免 HTTP 錯誤直接導致腳本停止，以便手動處理錯誤
+  };
+
+  Logger.log('發送請求到: ' + url);
+
+  try {
+    // --- 3. 發送 HTTP 請求 ---
+    const response = UrlFetchApp.fetch(url, options);
+    
+    // 獲取 HTTP 響應碼
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+    
+    // 檢查響應碼是否為成功 (例如 200)
+    if (responseCode === 200) {
+
+      
+      // --- 4. 解析 JSON 響應 ---
+      const data = JSON.parse(responseText); // <-- 這是整個頂層物件
+      Logger.log('完整 JSON 響應 (Data): ' + JSON.stringify(data, null, 2));
+
+      // **【核心修正】** 定義一個變數來指向真正的結果物件
+      const workflowData = data.data; 
+
+      // 檢查 workflowData 是否存在，以確保結構正確
+      if (!workflowData) {
+        Logger.log('錯誤：響應中缺少 "data" 子物件。');
+        return null;
+      }
+
+      Logger.log('Workflow 執行狀態: ' + workflowData.status);
+
+      // 檢查狀態是否成功，並嘗試提取 outputs.result
+      if (workflowData.status === 'succeeded' && workflowData.outputs && workflowData.outputs.result !== undefined) {
+        
+        const resultValue = workflowData.outputs.result; // <-- 使用 workflowData 替換 data
+        
+        Logger.log('成功提取 result 內容: ' + resultValue);
+        return resultValue; // 返回 result 內容值
+      } else {
+        // Workflow 執行失敗或缺少 result 欄位
+        Logger.log('請求成功但 Workflow 執行失敗或結果格式不正確。');
+        Logger.log('錯誤訊息 (Error): ' + (workflowData.error || 'N/A'));
+        return null;
+      }
+    } else {
+      // HTTP 請求失敗 (非 200 響應碼)
+      Logger.log('HTTP 請求失敗，狀態碼: ' + responseCode);
+      Logger.log('響應內容: ' + responseText);
+      return null;
+    }
+    
+  } catch (e) {
+    // 捕獲網路或其他異常
+    Logger.log('執行過程中發生錯誤: ' + e.toString());
+    return null;
+  }
+}
+
 /**
  * 從Sheet批次處理Drive檔案並呼叫Dify API
  * Extension 欄位說明：
